@@ -1,11 +1,14 @@
 "use server";
 
-import fs from "fs/promises";
-import path from "path";
+// -----------------------------------------------------------
+// 1) Remove any 'fs' or 'path' imports (no longer needed)
+// -----------------------------------------------------------
+// import fs from "fs/promises";
+// import path from "path";
 
-// ------------------------------------------------------------------
-// Type Declarations
-// ------------------------------------------------------------------
+// -----------------------------------------------------------
+// 2) Type Declarations
+// -----------------------------------------------------------
 export interface DriverData {
   name: string;      // Kid's name
   seats: number;     // # seats (excluding driver)
@@ -17,25 +20,37 @@ export interface AssignRidesResult {
   unassignedPeople: string[];
 }
 
-// ------------------------------------------------------------------
-// CSV reading utilities
-// ------------------------------------------------------------------
+// -----------------------------------------------------------
+// 3) CSV Reading Utility (using fetch instead of fs)
+// -----------------------------------------------------------
 async function readCSV(filename: string): Promise<string> {
-  const fullPath = path.join(process.cwd(), "public", filename);
-  return fs.readFile(fullPath, "utf-8");
+  // e.g. define NEXT_PUBLIC_BASE_URL = "http://localhost:3000" locally
+  // or "https://your-vercel-app.vercel.app" in production
+  const baseURL = process.env.NEXT_PUBLIC_BASE_URL;
+  if (!baseURL) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_BASE_URL. Set it in your .env or on Vercel."
+    );
+  }
+
+  // Example: fetch("https://your-vercel-app.vercel.app/people_areas.csv")
+  const url = `${baseURL}/${filename}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${filename}: ${res.status} ${res.statusText}`);
+  }
+  return res.text();
 }
 
-// ------------------------------------------------------------------
-// doAssignmentWithSwaps
-//   1) Perform the initial assignment
-//   2) Perform local improvement swaps
-// ------------------------------------------------------------------
+// -----------------------------------------------------------
+// 4) doAssignmentWithSwaps (same logic, but uses readCSV())
+// -----------------------------------------------------------
 export async function doAssignmentWithSwaps(
   presentKids: string[],                  // which kids are here
   drivers: DriverData[],                  // array in insertion order
   clientAreas: Record<string, string[]>   // area => kids
 ): Promise<AssignRidesResult> {
-  // 1) Read CSVs
+  // 1) Read CSVs via fetch
   const [peopleAreasCSV, distanceMatrixCSV] = await Promise.all([
     readCSV("people_areas.csv"),
     readCSV("distance_matrix.csv"),
@@ -57,7 +72,7 @@ export async function doAssignmentWithSwaps(
       }
     }
   }
-  // Merge client area data
+  // Merge in any area data from the client
   for (const [area, kids] of Object.entries(clientAreas)) {
     if (!loadedAreas[area]) {
       loadedAreas[area] = [];
@@ -83,7 +98,9 @@ export async function doAssignmentWithSwaps(
     });
   }
 
+  // -----------------------------------------------------------
   // Helpers
+  // -----------------------------------------------------------
   function findKidArea(kid: string): string | null {
     for (const [area, list] of Object.entries(loadedAreas)) {
       if (list.includes(kid)) return area;
@@ -111,15 +128,16 @@ export async function doAssignmentWithSwaps(
     return cost;
   }
 
-  // ----------------------------------------------------------------
+  // -----------------------------------------------------------
   // STEP A: Initial seat assignment
-  // ----------------------------------------------------------------
+  // -----------------------------------------------------------
   const remaining = new Set(presentKids);
   const rideAssignments: Record<string, string[]> = {};
   drivers.forEach((d) => {
     rideAssignments[d.name] = [];
   });
 
+  // Fill seats
   for (const d of drivers) {
     const driverName = d.name;
     let seatsLeft = d.seats;
@@ -136,7 +154,7 @@ export async function doAssignmentWithSwaps(
       }
     }
 
-    // Fill seats with same-area kids
+    // Fill seats with same-area kids first
     const driverArea = findKidArea(driverName);
     if (driverArea && seatsLeft > 0) {
       const sameAreaKids = Array.from(remaining).filter((kid) => {
@@ -178,9 +196,9 @@ export async function doAssignmentWithSwaps(
 
   const unassignedPeople = Array.from(remaining);
 
-  // ----------------------------------------------------------------
+  // -----------------------------------------------------------
   // STEP B: Local Improvement (Swaps)
-  // ----------------------------------------------------------------
+  // -----------------------------------------------------------
   const driverNames = drivers.map((d) => d.name);
   function seatsForDriver(dName: string) {
     const dd = drivers.find((x) => x.name === dName);
@@ -200,20 +218,16 @@ export async function doAssignmentWithSwaps(
         const seatsA = seatsForDriver(dA);
         const seatsB = seatsForDriver(dB);
 
-        // We'll attempt each passenger pA in dA and pB in dB
-        // If swapping them lowers total cost => do it
+        // Try each passenger pA in dA and pB in dB for a potential swap
         for (const pA of arrA) {
-          // skip if pA is the driver or parent's kid for dA
+          // skip if pA is the driver
           const driverA = drivers.find((x) => x.name === dA);
-          const driverB = drivers.find((x) => x.name === dB);
-
-          // if driverA isParent and pA == dA => must keep
           if (driverA?.isParent && pA === dA) continue;
-          // if driverA isKid and pA == dA => must keep
           if (!driverA?.isParent && pA === dA) continue;
 
           for (const pB of arrB) {
-            // same checks for pB
+            // skip if pB is the driver
+            const driverB = drivers.find((x) => x.name === dB);
             if (driverB?.isParent && pB === dB) continue;
             if (!driverB?.isParent && pB === dB) continue;
 
@@ -225,7 +239,7 @@ export async function doAssignmentWithSwaps(
               continue; // seat capacity exceeded
             }
 
-            // compute cost difference
+            // cost difference
             const oldCostA = approximateDriverCost(dA, arrA);
             const oldCostB = approximateDriverCost(dB, arrB);
             const newCostA = approximateDriverCost(dA, newA);
@@ -249,7 +263,9 @@ export async function doAssignmentWithSwaps(
     }
   }
 
-  // Done
+  // -----------------------------------------------------------
+  // Return final result
+  // -----------------------------------------------------------
   return {
     rideAssignments,
     unassignedPeople,

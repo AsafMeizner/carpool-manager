@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { doAssignmentWithSwaps } from "./actions";
+import { doAssignmentWithSwaps } from "./server";
 
 export interface DriverData {
   name: string;
