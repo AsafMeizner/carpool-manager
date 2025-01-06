@@ -211,7 +211,7 @@ export default function Home() {
                 </div>
               </div>
               <div>
-                <p className="font-medium mb-2">Add Kid:</p>
+                <p className="font-medium mb-2">Add Temporary Kid:</p>
                 <div className="flex flex-col gap-2">
                   <input
                     type="text"
@@ -220,13 +220,25 @@ export default function Home() {
                     onChange={(e) => setNewKidName(e.target.value)}
                     className="border rounded px-2 py-1"
                   />
-                  <input
+                  {/* <input
                     type="text"
                     placeholder="Area"
                     value={newKidArea}
                     onChange={(e) => setNewKidArea(e.target.value)}
                     className="border rounded px-2 py-1"
-                  />
+                  /> */}
+                  <select
+                    value={newKidArea}
+                    onChange={(e) => setNewKidArea(e.target.value)}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="">— Select Area —</option>
+                    {Object.keys(areas).map((area) => (
+                      <option key={area} value={area}>
+                        {area}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={handleAddKid}
                     className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold transition-colors"
