@@ -5,9 +5,9 @@ import Image from "next/image";
 import { doAssignmentWithSwaps } from "./actions";
 
 export interface DriverData {
-  name: string;      
-  seats: number;     
-  isParent: boolean; // true => parent's driving that kid, false => kid is driver
+  name: string;
+  seats: number;
+  isParent: boolean;
 }
 
 export interface AssignRidesResult {
@@ -16,7 +16,7 @@ export interface AssignRidesResult {
 }
 
 export default function Home() {
-  // Steps
+  // Step states
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // CSV
@@ -40,18 +40,16 @@ export default function Home() {
     null
   );
 
-  // -------------------------------------------
-  // 1) Load CSV
-  // -------------------------------------------
+  // ----------------------------------------------------
+  // 1) Load CSV from public folder
+  // ----------------------------------------------------
   async function handleLoadCSV() {
     try {
       const res = await fetch("/people_areas.csv");
-      if (!res.ok) {
-        throw new Error("Failed to load people_areas.csv");
-      }
+      if (!res.ok) throw new Error("Failed to load people_areas.csv");
       const text = await res.text();
-      const lines = text.trim().split(/\r?\n/);
 
+      const lines = text.trim().split(/\r?\n/);
       const localAreas: Record<string, string[]> = {};
       for (const line of lines) {
         const parts = line.split(",").map((p) => p.trim());
@@ -72,18 +70,19 @@ export default function Home() {
       for (const arr of Object.values(localAreas)) {
         arr.forEach((k) => allSet.add(k));
       }
+
       setAreas(localAreas);
       setAllKids(Array.from(allSet).sort());
       setCsvLoaded(true);
     } catch (err) {
       console.error(err);
-      alert("Error: see console for details.");
+      alert("Error loading CSV. See console for details.");
     }
   }
 
-  // -------------------------------------------
-  // Step 1: Select Kids
-  // -------------------------------------------
+  // ----------------------------------------------------
+  // Step 1: Select Kids Present
+  // ----------------------------------------------------
   function toggleKidPresent(kid: string) {
     const newSet = new Set(selectedKids);
     if (newSet.has(kid)) newSet.delete(kid);
@@ -93,7 +92,7 @@ export default function Home() {
 
   function handleAddKid() {
     if (!newKidName.trim() || !newKidArea.trim()) {
-      alert("Please provide both kid name and area.");
+      alert("Please enter both kid name and area.");
       return;
     }
     const updated = { ...areas };
@@ -118,9 +117,9 @@ export default function Home() {
     setStep(2);
   }
 
-  // -------------------------------------------
-  // Step 2: Add Drivers
-  // -------------------------------------------
+  // ----------------------------------------------------
+  // Step 2: Assign Drivers (Modified for Unified Heights)
+  // ----------------------------------------------------
   function handleAddDriver() {
     if (!driverName) {
       alert("Select a driver (kid) name.");
@@ -149,49 +148,50 @@ export default function Home() {
     }
     try {
       const presentArr = Array.from(selectedKids);
-      // CALL doAssignmentWithSwaps => this includes local improvements
+      // call server action
       const result = await doAssignmentWithSwaps(presentArr, drivers, areas);
       setAssignments(result);
       setStep(3);
     } catch (err) {
       console.error(err);
-      alert("Error: see console.");
+      alert("Error during assignment. Check console.");
     }
   }
 
-  // -------------------------------------------
-  // Render Steps
-  // -------------------------------------------
+  // ----------------------------------------------------
+  // Render
+  // ----------------------------------------------------
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-800">
-      <header className="bg-white shadow px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div className="min-h-screen flex flex-col bg-gray-100 text-gray-800">
+      {/* Header */}
+      <header className="bg-white shadow px-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <Image
             src="/car.png"
-            alt="Next.js"
+            alt="Carpool Manager"
             width={55}
             height={20}
           />
-          <h1 className="text-lg font-bold">Carpool Manager</h1>
+          <h1 className="text-xl font-bold">Carpool Manager</h1>
         </div>
         <button
           onClick={handleLoadCSV}
           disabled={csvLoaded}
-          className={`px-4 py-1 rounded font-semibold ${
+          className={`px-5 py-2 rounded font-semibold transition-colors ${
             csvLoaded
               ? "bg-gray-400 text-white cursor-not-allowed"
-              : "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
           }`}
         >
           {csvLoaded ? "CSV Loaded" : "Load CSV"}
         </button>
       </header>
 
-      <main className="flex-1 p-4 max-w-4xl mx-auto w-full">
+      <main className="flex-1 p-6 max-w-4xl mx-auto w-full">
         {/* STEP 1 */}
         {csvLoaded && step === 1 && (
-          <div className="bg-white rounded shadow p-4 mt-4">
-            <h2 className="text-xl font-semibold mb-4">
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-2xl font-semibold mb-4">
               Step 1: Select Kids Present
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -218,46 +218,50 @@ export default function Home() {
                     placeholder="Kid Name"
                     value={newKidName}
                     onChange={(e) => setNewKidName(e.target.value)}
-                    className="border px-2 py-1 rounded"
+                    className="border rounded px-2 py-1"
                   />
                   <input
                     type="text"
                     placeholder="Area"
                     value={newKidArea}
                     onChange={(e) => setNewKidArea(e.target.value)}
-                    className="border px-2 py-1 rounded"
+                    className="border rounded px-2 py-1"
                   />
                   <button
                     onClick={handleAddKid}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded"
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold transition-colors"
                   >
                     Add Kid
                   </button>
                 </div>
               </div>
             </div>
-            <button
-              onClick={handleNextFromStep1}
-              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Next
-            </button>
+            <div className="mt-6 flex gap-4">
+              <button
+                onClick={handleNextFromStep1}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
 
-        {/* STEP 2 */}
+        {/* STEP 2 (Improved styling for uniform heights) */}
         {step === 2 && (
-          <div className="bg-white rounded shadow p-4 mt-4">
-            <h2 className="text-xl font-semibold mb-4">Step 2: Assign Drivers</h2>
-            <div className="flex flex-col sm:flex-row gap-4">
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-2xl font-semibold mb-4">Step 2: Assign Drivers</h2>
+
+            <div className="flex flex-col sm:flex-row gap-4 mb-4 items-end sm:items-center">
+              {/* Driver Name (select) */}
               <div className="flex-1">
                 <label className="block font-medium mb-1">Driver Kid Name:</label>
                 <select
-                  className="border px-2 py-1 rounded w-full"
+                  className="border rounded px-3 py-2 w-full h-10"
                   value={driverName}
                   onChange={(e) => setDriverName(e.target.value)}
                 >
-                  <option value="">-- Select Kid --</option>
+                  <option value="">— Select Kid —</option>
                   {allKids.map((k) => (
                     <option key={k} value={k}>
                       {k}
@@ -265,38 +269,48 @@ export default function Home() {
                   ))}
                 </select>
               </div>
+
+              {/* Seats Input */}
               <div className="flex-1">
-                <label className="block font-medium mb-1">Seats (excl. driver):</label>
+                <label className="block font-medium mb-1">
+                  Seats (excluding driver):
+                </label>
                 <input
                   type="number"
-                  className="border px-2 py-1 rounded w-full"
+                  className="border rounded px-3 py-2 w-full h-10"
                   placeholder="0"
                   value={driverSeats}
                   onChange={(e) => setDriverSeats(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-2 mt-6 sm:mt-0">
+
+              {/* Parent Driving Checkbox */}
+              <div className="flex items-center gap-2 mt-6">
                 <input
                   type="checkbox"
+                  className="h-5 w-5"
                   checked={driverIsParent}
                   onChange={(e) => setDriverIsParent(e.target.checked)}
                 />
-                <span>Parent Driving (kid is passenger)</span>
+                <label className="text-sm font-medium select-none">
+                  Parent Driving
+                </label>
               </div>
             </div>
+
             <button
               onClick={handleAddDriver}
-              className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold transition-colors mb-4"
             >
               Add Driver
             </button>
 
-            <div className="border rounded p-3 mt-4">
+            <div className="border rounded p-3">
               <h3 className="font-medium mb-2">Current Drivers:</h3>
               {drivers.length === 0 ? (
                 <p className="text-sm text-gray-500">None yet.</p>
               ) : (
-                <ul className="text-sm space-y-1">
+                <ul className="space-y-1 text-sm">
                   {drivers.map((d, idx) => (
                     <li key={idx}>
                       <strong>{d.name}</strong> — {d.seats} seats,{" "}
@@ -307,46 +321,94 @@ export default function Home() {
               )}
             </div>
 
-            <button
-              onClick={handleFinalizeDrivers}
-              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Finalize
-            </button>
+            <div className="mt-6 flex gap-4">
+              {/* Back => Step 1 */}
+              <button
+                onClick={() => setStep(1)}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded font-semibold transition-colors"
+              >
+                Back
+              </button>
+              {/* Finalize => Step 3 */}
+              <button
+                onClick={handleFinalizeDrivers}
+                // className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold transition-colors"
+              >
+                Finalize
+              </button>
+            </div>
           </div>
         )}
 
-        {/* STEP 3 */}
+        {/* STEP 3: RESULTS */}
         {step === 3 && assignments && (
-          <div className="bg-white rounded shadow p-4 mt-4">
-            <h2 className="text-xl font-semibold mb-4">Step 3: Ride Assignments</h2>
-            {Object.entries(assignments.rideAssignments).map(
-              ([driver, passengers]) => (
-                <div key={driver} className="mb-4">
-                  <p className="font-medium">Driver: {driver}</p>
-                  {passengers.map((kid) => (
-                    <div key={kid} className="ml-4">
-                      - {kid}
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-            {assignments.unassignedPeople.length > 0 && (
-              <div className="mt-2">
-                <p className="font-medium">Unassigned Kids:</p>
-                {assignments.unassignedPeople.map((kid) => (
-                  <div key={kid} className="ml-4">
-                    - {kid}
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-2xl font-semibold mb-4">Step 3: Ride Assignments</h2>
+
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full border border-red-700 text-sm">
+                <thead className="bg-red-700 text-white">
+                  <tr>
+                    <th className="border px-4 py-2 text-left">Driver</th>
+                    <th className="border px-4 py-2 text-left">Passengers</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {Object.entries(assignments.rideAssignments).map(
+                    ([driver, passengers]) => (
+                      <tr key={driver}>
+                        <td className="border px-4 py-2 font-semibold w-1/4">
+                          {driver}
+                        </td>
+                        <td className="border px-4 py-2 align-top">
+                          {passengers.length > 0 ? (
+                            <ul className="list-disc ml-6">
+                              {passengers.map((kid) => (
+                                <li key={kid}>{kid}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-500">No passengers</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )}
+
+                  {/* Unassigned row if any */}
+                  {assignments.unassignedPeople.length > 0 && (
+                    <tr className="bg-red-50">
+                      <td className="border px-4 py-2 font-semibold">
+                        Unassigned
+                      </td>
+                      <td className="border px-4 py-2">
+                        <ul className="list-disc ml-6">
+                          {assignments.unassignedPeople.map((kid) => (
+                            <li key={kid}>{kid}</li>
+                          ))}
+                        </ul>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Back => Step 2 */}
+            <div className="mt-6">
+              <button
+                onClick={() => setStep(2)}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded font-semibold transition-colors"
+              >
+                Back
+              </button>
+            </div>
           </div>
         )}
       </main>
 
-      <footer className="bg-white p-4 text-center text-gray-500 text-sm mt-auto">
+      <footer className="bg-white px-6 py-4 text-center text-gray-500 text-sm mt-auto">
         © {new Date().getFullYear()} Carpool Manager
       </footer>
     </div>
