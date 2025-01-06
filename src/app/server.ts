@@ -1,14 +1,12 @@
 "use server";
 
-// -----------------------------------------------------------
-// 1) Remove any 'fs' or 'path' imports (no longer needed)
-// -----------------------------------------------------------
+// (1) No fs or path imports!
 // import fs from "fs/promises";
 // import path from "path";
 
-// -----------------------------------------------------------
-// 2) Type Declarations
-// -----------------------------------------------------------
+// ------------------------------------------------------------------
+// Type Declarations
+// ------------------------------------------------------------------
 export interface DriverData {
   name: string;      // Kid's name
   seats: number;     // # seats (excluding driver)
@@ -20,20 +18,21 @@ export interface AssignRidesResult {
   unassignedPeople: string[];
 }
 
-// -----------------------------------------------------------
-// 3) CSV Reading Utility (using fetch instead of fs)
-// -----------------------------------------------------------
+// ------------------------------------------------------------------
+// CSV Reading Utility (using fetch instead of fs)
+// ------------------------------------------------------------------
 async function readCSV(filename: string): Promise<string> {
-  // e.g. define NEXT_PUBLIC_BASE_URL = "http://localhost:3000" locally
-  // or "https://your-vercel-app.vercel.app" in production
-  const baseURL = process.env.NEXT_PUBLIC_BASE_URL;
+  // e.g. NEXT_PUBLIC_SITE_URL = "http://localhost:3000" in .env.development
+  //      NEXT_PUBLIC_SITE_URL = "https://<your-vercel-deployment>.vercel.app" in .env.production
+  const baseURL = process.env.NEXT_PUBLIC_SITE_URL;
   if (!baseURL) {
     throw new Error(
-      "Missing NEXT_PUBLIC_BASE_URL. Set it in your .env or on Vercel."
+      "Missing NEXT_PUBLIC_SITE_URL. Make sure it's set in your .env and on Vercel."
     );
   }
 
-  // Example: fetch("https://your-vercel-app.vercel.app/people_areas.csv")
+  // For example, if baseURL = "https://my-app.vercel.app",
+  // we'll fetch "https://my-app.vercel.app/people_areas.csv"
   const url = `${baseURL}/${filename}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
@@ -42,9 +41,9 @@ async function readCSV(filename: string): Promise<string> {
   return res.text();
 }
 
-// -----------------------------------------------------------
-// 4) doAssignmentWithSwaps (same logic, but uses readCSV())
-// -----------------------------------------------------------
+// ------------------------------------------------------------------
+// doAssignmentWithSwaps
+// ------------------------------------------------------------------
 export async function doAssignmentWithSwaps(
   presentKids: string[],                  // which kids are here
   drivers: DriverData[],                  // array in insertion order
@@ -52,8 +51,8 @@ export async function doAssignmentWithSwaps(
 ): Promise<AssignRidesResult> {
   // 1) Read CSVs via fetch
   const [peopleAreasCSV, distanceMatrixCSV] = await Promise.all([
-    readCSV("people_areas.csv"),
-    readCSV("distance_matrix.csv"),
+    readCSV("people_areas.csv"),       // from /public/people_areas.csv
+    readCSV("distance_matrix.csv"),    // from /public/distance_matrix.csv
   ]);
 
   // 2) Parse people_areas.csv => loadedAreas
@@ -72,7 +71,7 @@ export async function doAssignmentWithSwaps(
       }
     }
   }
-  // Merge in any area data from the client
+  // Merge in area data from the client (UI side)
   for (const [area, kids] of Object.entries(clientAreas)) {
     if (!loadedAreas[area]) {
       loadedAreas[area] = [];
@@ -142,11 +141,11 @@ export async function doAssignmentWithSwaps(
     const driverName = d.name;
     let seatsLeft = d.seats;
 
-    // Kid driver => remove them from "remaining"
+    // Kid driver => remove from "remaining"
     if (!d.isParent) {
       remaining.delete(driverName);
     } else {
-      // Parent => that kid is a passenger if present
+      // Parent => that kid is also a passenger if present
       if (remaining.has(driverName)) {
         rideAssignments[driverName].push(driverName);
         remaining.delete(driverName);
@@ -154,7 +153,7 @@ export async function doAssignmentWithSwaps(
       }
     }
 
-    // Fill seats with same-area kids first
+    // Prefer kids in the same area first
     const driverArea = findKidArea(driverName);
     if (driverArea && seatsLeft > 0) {
       const sameAreaKids = Array.from(remaining).filter((kid) => {
@@ -169,7 +168,7 @@ export async function doAssignmentWithSwaps(
       }
     }
 
-    // Route-based from Tichonet if seats remain
+    // Then route-based from Tichonet
     let currentLoc = "Tichonet";
     while (seatsLeft > 0 && remaining.size > 0) {
       let bestKid: string | null = null;
@@ -220,18 +219,17 @@ export async function doAssignmentWithSwaps(
 
         // Try each passenger pA in dA and pB in dB for a potential swap
         for (const pA of arrA) {
-          // skip if pA is the driver
           const driverA = drivers.find((x) => x.name === dA);
+          // Skip if pA is the driver themself
           if (driverA?.isParent && pA === dA) continue;
           if (!driverA?.isParent && pA === dA) continue;
 
           for (const pB of arrB) {
-            // skip if pB is the driver
             const driverB = drivers.find((x) => x.name === dB);
             if (driverB?.isParent && pB === dB) continue;
             if (!driverB?.isParent && pB === dB) continue;
 
-            // after swap:
+            // After swap:
             const newA = arrA.filter((x) => x !== pA).concat(pB);
             const newB = arrB.filter((x) => x !== pB).concat(pA);
 
@@ -239,7 +237,7 @@ export async function doAssignmentWithSwaps(
               continue; // seat capacity exceeded
             }
 
-            // cost difference
+            // Calculate cost difference
             const oldCostA = approximateDriverCost(dA, arrA);
             const oldCostB = approximateDriverCost(dB, arrB);
             const newCostA = approximateDriverCost(dA, newA);
@@ -263,9 +261,7 @@ export async function doAssignmentWithSwaps(
     }
   }
 
-  // -----------------------------------------------------------
-  // Return final result
-  // -----------------------------------------------------------
+  // Done!
   return {
     rideAssignments,
     unassignedPeople,
