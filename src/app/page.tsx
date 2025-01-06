@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import { doAssignmentWithSwaps } from "./server";
+// use react toastify for notifications when you add kid and driver
+import { toast } from 'react-toastify';
 
 export interface DriverData {
   name: string;
@@ -107,6 +109,17 @@ export default function Home() {
 
     setNewKidName("");
     setNewKidArea("");
+
+    // toastify notification
+    toast.success('Kid added successfully!', {
+      position: "top-right",
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+    });
   }
 
   function handleNextFromStep1() {
@@ -139,6 +152,17 @@ export default function Home() {
     setDriverName("");
     setDriverSeats("");
     setDriverIsParent(false);
+
+    // toastify notification
+    toast.success('Driver added successfully!', {
+      position: "top-right",
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+    });
   }
 
   async function handleFinalizeDrivers() {
@@ -220,13 +244,6 @@ export default function Home() {
                     onChange={(e) => setNewKidName(e.target.value)}
                     className="border rounded px-2 py-1"
                   />
-                  {/* <input
-                    type="text"
-                    placeholder="Area"
-                    value={newKidArea}
-                    onChange={(e) => setNewKidArea(e.target.value)}
-                    className="border rounded px-2 py-1"
-                  /> */}
                   <select
                     value={newKidArea}
                     onChange={(e) => setNewKidArea(e.target.value)}
